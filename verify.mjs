@@ -18,18 +18,6 @@ s.products.find(p=>p.name==='大鱼丸').price=800;s.products.find(p=>p.name==='
 s.products.find(p=>p.name==='鸭锁骨').price=500;
 assert.equal(amount(o,s),2300);
 assert(totals(s).some(r=>r.product==='大鱼丸'&&r.unit==='份'));
-if(process.argv.includes('--api')){
- const base='http://127.0.0.1:5173/api/board';
- const read=async()=>await (await fetch(base)).json();
- const put=async(state,revision)=>await fetch(base,{method:'PUT',headers:{'Content-Type':'application/json',Origin:'http://127.0.0.1:5173'},body:JSON.stringify({state,revision})});
- let b=await read();let r=await put(s,b.revision);assert.equal(r.status,200);let n=await read();assert.equal(n.state.orders[0].items[0].qty,2);
- assert.equal((await put(s,b.revision)).status,409);
- n.state.orders[0].picked=new Date().toISOString();r=await put(n.state,n.revision);assert.equal(r.status,200);
- n=await read();assert(n.state.orders[0].picked);
- n.state.orders[0].picked=null;r=await put(n.state,n.revision);assert.equal(r.status,200);
- n=await read();assert.equal(n.state.orders[0].picked,null);
- n.state.orders[0].items[0].qty=-1;assert.equal((await put(n.state,n.revision)).status,400);
- n=await read();assert.equal((await put(initial(),n.revision)).status,200);
- console.log('Persistence, pickup, undo, conflict and invalid quantity checks passed');
-}
+if(process.argv.includes('--api')) await import('./verify-activities.mjs');
 console.log('24 orders, parsing, flavor rules, units, edits, procurement and pricing checks passed');
+
