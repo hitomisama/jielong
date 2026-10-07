@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {initial,parse,totals,amount} from './lib/orders.ts';
+const s=initial();
+assert.equal(s.orders.length,24);
+assert.equal(s.orders[4].name,'三月情');
+assert.equal(s.orders[13].items.at(-1).flavor,'不辣');
+assert.equal(s.orders[19].items[0].qty,null);
+assert.equal(s.orders[0].items[1].flavor,'微辣');
+assert.equal(s.orders[15].items[2].flavor,'辣');
+assert.equal(parse('1.甲 鸡爪 1份 10.乙 鸡爪2份',s.products).length,2);
+assert.equal(totals(s,true).length,0);
+const o=s.orders[0];o.confirmed=true;
+assert.equal(totals(s,true).find(r=>r.product==='大鱼丸').qty,1);
+o.items[0].qty=2;
+assert.equal(totals(s,true).find(r=>r.product==='大鱼丸').qty,2);
+assert.equal(amount(o,s),null);
+s.products.find(p=>p.name==='大鱼丸').price=800;s.products.find(p=>p.name==='大鱼丸').unit='kg';
+s.products.find(p=>p.name==='鸭锁骨').price=500;
+assert.equal(amount(o,s),2300);
+assert(totals(s).some(r=>r.product==='大鱼丸'&&r.unit==='份'));
+if(process.argv.includes('--api')){
+ const base='http://127.0.0.1:5173/api/board';
+ const read=async()=>await (await fetch(base)).json();
+ const put=async(state,revision)=>await fetch(base,{method:'PUT',headers:{'Content-Type':'application/json',Origin:'http://127.0.0.1:5173'},body:JSON.stringify({state,revision})});
+ let b=await read();let r=await put(s,b.revision);assert.equal(r.status,200);let n=await read();assert.equal(n.state.orders[0].items[0].qty,2);
+ assert.equal((await put(s,b.revision)).status,409);
+ n.state.orders[0].picked=new Date().toISOString();r=await put(n.state,n.revision);assert.equal(r.status,200);
+ n=await read();assert(n.state.orders[0].picked);
+ n.state.orders[0].picked=null;r=await put(n.state,n.revision);assert.equal(r.status,200);
+ n=await read();assert.equal(n.state.orders[0].picked,null);
+ n.state.orders[0].items[0].qty=-1;assert.equal((await put(n.state,n.revision)).status,400);
+ n=await read();assert.equal((await put(initial(),n.revision)).status,200);
+ console.log('Persistence, pickup, undo, conflict and invalid quantity checks passed');
+}
+console.log('24 orders, parsing, flavor rules, units, edits, procurement and pricing checks passed');
